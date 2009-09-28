@@ -24,7 +24,7 @@ module ExceptionNotifiable
     "404" => "Not Found",
     "405" => "Method Not Allowed",
     "410" => "Gone",
-    "418" => "IÕm a teapot",
+    "418" => "I'm a teapot",
     "422" => "Unprocessable Entity",
     "423" => "Locked",
     "500" => "Internal Server Error",
@@ -246,59 +246,4 @@ module ExceptionNotifiable
       return false if self.class.silent_exceptions.respond_to?(:any?) && self.class.silent_exceptions.any? {|klass| klass === exception }
       return true if ExceptionNotifier.config[:notify_error_classes].include?(exception.class)
       return true if !status_cd.nil? && ExceptionNotifier.config[:notify_error_codes].include?(status_cd)
-      return ExceptionNotifier.config[:notify_other_errors]
-    end
-
-    def is_local?
-      (consider_all_requests_local || local_request?)
-    end
-
-    def status_code_for_exception(exception)
-      self.class.rails_error_classes[exception.class].nil? ? '500' : self.class.rails_error_classes[exception.class].blank? ? '200' : self.class.rails_error_classes[exception.class]
-    end
-
-    def lay_blame(exception)
-      error = {}
-      unless(ExceptionNotifier.config[:git_repo_path].nil?)
-        if(exception.class == ActionView::TemplateError)
-            blame = blame_output(exception.line_number, "app/views/#{exception.file_name}")
-            error[:author] = blame[/^author\s.+$/].gsub(/author\s/,'')
-            error[:line]   = exception.line_number
-            error[:file]   = exception.file_name
-        else
-          exception.backtrace.each do |line|
-            file = exception_in_project?(line[/^.+?(?=:)/])
-            unless(file.nil?)
-              line_number = line[/:\d+:/].gsub(/[^\d]/,'')
-              # Use relative path or weird stuff happens
-              blame = blame_output(line_number, file.gsub(Regexp.new("#{RAILS_ROOT}/"),''))
-              error[:author] = blame[/^author\s.+$/].sub(/author\s/,'')
-              error[:line]   = line_number
-              error[:file]   = file
-              break
-            end
-          end
-        end
-      end
-      error
-    end
-  
-    def blame_output(line_number, path)
-      app_directory = Dir.pwd
-      Dir.chdir ExceptionNotifier.config[:git_repo_path]
-      blame = `git blame -p -L #{line_number},#{line_number} #{path}`
-      Dir.chdir app_directory
-  
-      blame
-    end
-  
-    def exception_in_project?(path) # should be a path like /path/to/broken/thingy.rb
-      dir = File.split(path).first rescue ''
-      if(File.directory?(dir) and !(path =~ /vendor\/plugins/) and !(path =~ /vendor\/gems/) and path.include?(RAILS_ROOT))
-        path
-      else
-        nil
-      end
-    end
-
-end
+      return ExceptionNotifier.config[%
